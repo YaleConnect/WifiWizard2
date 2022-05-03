@@ -101,6 +101,7 @@ public class WifiWizard2 extends CordovaPlugin {
     private static final String SWITCH_TO_LOCATION_SETTINGS = "switchToLocationSettings";
     private static final String SPECIFIER_NETWORK = "specifierConnection"; //>=29
     private static final String SUGGEST_NETWORK = "suggestConnection"; //>=29
+    private static final String RESET_BIND_ALL = "resetBindAll";
 
     private static final int SCAN_RESULTS_CODE = 0; // Permissions request code for getScanResults()
     private static final int SCAN_CODE = 1; // Permissions request code for scan()
@@ -264,7 +265,9 @@ public class WifiWizard2 extends CordovaPlugin {
             this.disconnect(callbackContext);
         } else if (action.equals(GET_CONNECTED_NETWORKID)) {
             this.getConnectedNetworkID(callbackContext);
-        } else if (action.equals(SPECIFIER_NETWORK)) { // API >= 29
+        } else if (action.equals(RESET_BIND_ALL)){
+            this.resetBindAll(callbackContext);
+        }else if (action.equals(SPECIFIER_NETWORK)) { // API >= 29
             this.specifierConnection(callbackContext, data);
             return true;
         } else if (action.equals(SUGGEST_NETWORK)) { // API >= 29
@@ -795,8 +798,7 @@ public class WifiWizard2 extends CordovaPlugin {
             for (int i = 0; i < TIMES_TO_RETRY; i++) {
 
                 WifiInfo info = wifiManager.getConnectionInfo();
-                NetworkInfo.DetailedState connectionState = info
-                        .getDetailedStateOf(info.getSupplicantState());
+                NetworkInfo.DetailedState connectionState = info.getDetailedStateOf(info.getSupplicantState());
 
                 boolean isConnected =
                         // need to ensure we're on correct network because sometimes this code is
@@ -1739,7 +1741,7 @@ public class WifiWizard2 extends CordovaPlugin {
         Log.d(TAG, "maybeResetBindALL");
 
         // desired should have a value if receiver is registered
-        if (desired != null) {
+        //if (desired != null) {
 
             if (API_VERSION > 21) {
 
@@ -1758,6 +1760,7 @@ public class WifiWizard2 extends CordovaPlugin {
                 connectivityManager.setProcessDefaultNetwork(null);
             }
 
+            Log.d("WIFI WIZARD", ""+(networkCallback != null));
             if (API_VERSION > 21 && networkCallback != null) {
 
                 try {
@@ -1771,7 +1774,7 @@ public class WifiWizard2 extends CordovaPlugin {
             previous = null;
             desired = null;
 
-        }
+        //}
 
     }
 
@@ -1984,7 +1987,7 @@ public class WifiWizard2 extends CordovaPlugin {
 
     /**
      *  Specifier one network to connect wifi providing ssid and password
-     *  This function only provides internet to app and not to the rest of the system 
+     *  This function only provides internet to app and not to the rest of the system
      *  Author: Anthony Sychev (hello at dm211 dot com)
      *  Edited by: Mathias Scavello (info at mathiasscavello dot com)
      *
@@ -2044,7 +2047,7 @@ public class WifiWizard2 extends CordovaPlugin {
                 NetworkRequest networkRequest = networkRequestBuilder1.build();
                 ConnectivityManager cm = (ConnectivityManager)
                         cordova.getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
-                ConnectivityManager.NetworkCallback networkCallback = new
+                this.networkCallback = new
                         ConnectivityManager.NetworkCallback() {
                             @Override
                             public void onAvailable(Network network) {
@@ -2062,8 +2065,18 @@ public class WifiWizard2 extends CordovaPlugin {
                                 Log.d(TAG, "WifiWizard2: 211 onUnavailable");
                                 callbackContext.error("SPECIFIER_NETWORK_UNAVAILABLE");
                             }
+
+                            @Override
+                            public void onLost(Network network) {
+                                super.onLost(network);
+                                Log.d(TAG, "WifiWizard2: 211 onLost:" + network);
+                                lostNetwork();
+                            }
                         };
+
+                Log.d("WIFI WIZARD after new ", ""+(networkCallback != null));
                 cm.requestNetwork(networkRequest, networkCallback);
+                Log.d("WIFI WIZARD", ""+(networkCallback != null));
 
             } catch (Exception e) {
                 callbackContext.error(e.getMessage());
@@ -2075,7 +2088,15 @@ public class WifiWizard2 extends CordovaPlugin {
         }
     }
 
-    /**
+    public void lostNetwork () {
+      Log.d("WIFI WIZARD lostNetwork", ""+(this.networkCallback != null));
+      if (API_VERSION >= 23) {
+        connectivityManager.bindProcessToNetwork(null);
+      }
+      connectivityManager.unregisterNetworkCallback(this.networkCallback);
+  }
+
+   /**
      *  Suggest one network to connect wifi providing ssid and password
      *  It connects when system detects the network itself
      *  Author: Mathias Scavello (info at mathiasscavello dot com)
@@ -2133,7 +2154,7 @@ public class WifiWizard2 extends CordovaPlugin {
                 return;
             }
             callbackContext.success("STATUS_NETWORK_SUGGESTIONS_ADDED");
-            
+
             //TODO: check when device is connected
 
         } catch (Exception e) {
