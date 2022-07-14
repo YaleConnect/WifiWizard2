@@ -44,6 +44,7 @@ import android.net.wifi.SupplicantState;
 import android.net.ConnectivityManager;
 
 import android.location.LocationManager;
+import android.os.PatternMatcher;
 import android.provider.Settings;
 
 import android.content.Context;
@@ -2018,7 +2019,7 @@ public class WifiWizard2 extends CordovaPlugin {
                 Log.d(TAG, "WifiWizard2: 211 - ishidden: " + isHidden);
 
                 WifiNetworkSpecifier.Builder builder = new WifiNetworkSpecifier.Builder();
-                builder.setSsid(SSID);
+                builder.setSsidPattern(new PatternMatcher(SSID, PatternMatcher.PATTERN_PREFIX));
 
                 if (Algorithm.matches("/WEP|WPA|WPA2/gim") && PASS.length() > 0) {
                     builder.setWpa2Passphrase(PASS);
