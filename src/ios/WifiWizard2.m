@@ -8,16 +8,26 @@
 @implementation WifiWizard2
 
 - (id)fetchSSIDInfo {
-    // see http://stackoverflow.com/a/5198968/907720
-    NSArray *ifs = (__bridge_transfer NSArray *)CNCopySupportedInterfaces();
-    NSLog(@"Supported interfaces: %@", ifs);
-    NSDictionary *info;
-    for (NSString *ifnam in ifs) {
-        info = (__bridge_transfer NSDictionary *)CNCopyCurrentNetworkInfo((__bridge CFStringRef)ifnam);
-        NSLog(@"%@ => %@", ifnam, info);
-        if (info && [info count]) { break; }
+    if (@available(iOS 14.0, *)) {
+        __block NSDictionary *info = nil;
+        [NEHotspotNetwork fetchCurrentWithCompletionHandler:^(NEHotspotNetwork * _Nullable currentNetwork) {
+            if (currentNetwork) {
+                info = @{(id)kCNNetworkInfoKeySSID: [currentNetwork SSID],
+                         (id)kCNNetworkInfoKeyBSSID: [currentNetwork BSSID]};
+            } else {
+                info = @{};
+            }
+        }];
+        return info;
+    } else {
+        NSArray *ifs = (__bridge_transfer NSArray *)CNCopySupportedInterfaces();
+        NSDictionary *info;
+        for (NSString *ifnam in ifs) {
+            info = (__bridge_transfer NSDictionary *)CNCopyCurrentNetworkInfo((__bridge CFStringRef)ifnam);
+            if (info && [info count]) { break; }
+        }
+        return info;
     }
-    return info;
 }
 
 - (BOOL) isWiFiEnabled {
@@ -59,20 +69,18 @@
 
 			configuration.joinOnce = false;
             
-            [[NEHotspotConfigurationManager sharedManager] applyConfiguration:configuration completionHandler:^(NSError * _Nullable error) {
-                
-                NSDictionary *r = [self fetchSSIDInfo];
-                
-                NSString *ssid = [r objectForKey:(id)kCNNetworkInfoKeySSID]; //@"SSID"
-                
-                if ([ssid isEqualToString:ssidString]){
-                    pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:ssidString];
-                }else{
-                    pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error.description];
-                }
-                [self.commandDelegate sendPluginResult:pluginResult
-                                            callbackId:command.callbackId];
-            }];
+        [[NEHotspotConfigurationManager sharedManager] applyConfiguration:configuration completionHandler:^(NSError * _Nullable error) {
+            NSDictionary *r = [self fetchSSIDInfo];
+            NSString *ssid = [r objectForKey:(id)kCNNetworkInfoKeySSID];
+            
+            if ([ssid isEqualToString:ssidString]) {
+                pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:ssidString];
+            } else {
+                pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error ? error.description : @"SSID mismatch"];
+            }
+            [self.commandDelegate sendPluginResult:pluginResult
+                                        callbackId:command.callbackId];
+        }];
 
 
 		} else {
